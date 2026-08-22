@@ -3,6 +3,17 @@
 Hướng dẫn dựng bản production trên Ubuntu 22.04/24.04, chạy sau Nginx + HTTPS, dùng **MySQL 8**.
 Khác với cách đang chạy hiện tại (Windows + SQLite + Cloudflare Tunnel, xem `TUNNEL_SETUP.md`).
 
+> **Trạng thái ngày 22/08/2026** — mục 2→10 đã chạy xong trên `143.244.165.189`:
+> MySQL 8.0.46 + Node 22.23 + Nginx 1.24 + Let's Encrypt, service `genmockup` đang chạy,
+> `https://mockup.primehorizon.studio` truy cập được. Toàn bộ **7.126 dòng metadata** đã
+> chuyển từ SQLite sang MySQL và đối chiếu khớp hash từng bảng.
+> **Còn lại: chưa rsync 12 GB ảnh trong `storage/`** — nên link ảnh hiện còn 404. Bản
+> Windows cũ vẫn đang chạy và vẫn là bản dùng thật; xem mục 7.2 và 11 khi cắt.
+>
+> Chứng chỉ Let's Encrypt đăng ký **không kèm email** (`--register-unsafely-without-email`)
+> nên không có cảnh báo hết hạn qua mail — tự gia hạn vẫn chạy bằng `certbot.timer`.
+> Thêm email sau bằng `certbot update_account --email <mail>`.
+
 Kiến trúc sau khi deploy — **một origin duy nhất**, không có CORS:
 
 ```
@@ -91,8 +102,8 @@ nhất — đừng bỏ qua bước này. MySQL mặc định đã bind `127.0.0
 ```bash
 sudo apt update && sudo apt install -y nginx git curl mysql-server
 
-# Node 20 LTS
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+# Node 22 — KHÔNG phải 20, xem ghi chú bên dưới
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
 
 # pnpm 11 (đúng version trong packageManager)
@@ -101,6 +112,11 @@ corepack prepare pnpm@11.1.3 --activate
 
 node -v && pnpm -v && mysql --version
 ```
+
+> ⚠️ **Phải là Node 22 dù `engines` ghi `>=20`.** pnpm 11.1.3 `require('node:sqlite')`,
+> mà module đó chỉ có từ Node 22.5. Cài Node 20 thì pnpm chết ngay ở lệnh đầu tiên với
+> `ERR_UNKNOWN_BUILTIN_MODULE: No such built-in module: node:sqlite`. Bản thân app chạy
+> được trên Node 20, nhưng không cài nổi dependencies nên không đi tới đâu.
 
 ### Đồng hồ hệ thống phải là UTC
 
@@ -129,11 +145,14 @@ sudo chown -R genmockup:genmockup /srv/genmockup
 ```bash
 sudo -u genmockup -s
 cd /srv/genmockup/app
-git clone <repo-url> .
+git clone https://github.com/Thanhphong312/genmockup.git .
 
 pnpm install            # KHÔNG dùng --prod, xem cảnh báo bên dưới
-pnpm prisma:generate
 ```
+
+> ⚠️ Repo đang để **public**. `.gitignore` dùng pattern `.env*` chứ không phải `.env` —
+> đã từng có file tên `apps/api/.env copy` chứa `GOOGLE_OAUTH_CLIENT_SECRET` thật lọt qua
+> pattern cũ vì tên có dấu cách. Đừng nới pattern đó ra.
 
 > ⚠️ **Đừng chạy `pnpm install --prod`.** `tsx`, `pino-pretty`, `prisma` và `better-sqlite3`
 > nằm trong `devDependencies` nhưng đều cần: `pino-pretty` là transport của logger (thiếu là
@@ -155,8 +174,18 @@ sudo apt install -y build-essential python3
 
 ### Tạo database + user
 
+`mysql_secure_installation` là lệnh tương tác. Nếu chạy qua script/SSH không có terminal,
+dùng SQL tương đương:
+
+```sql
+DELETE FROM mysql.user WHERE User='';
+DROP DATABASE IF EXISTS test;
+DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%';
+```
+
+Trên Ubuntu, `root` của MySQL dùng `auth_socket` nên `sudo mysql` vào thẳng, không cần mật khẩu.
+
 ```bash
-sudo mysql_secure_installation      # đặt mật khẩu root, bỏ anonymous user, bỏ test db
 sudo mysql
 ```
 
@@ -195,9 +224,17 @@ innodb_buffer_pool_size = 256M
 ```
 
 ```bash
+sudo chmod 644 /etc/mysql/mysql.conf.d/genmockup.cnf     # xem cảnh báo bên dưới
 sudo systemctl restart mysql
-mysql -u genmockup -p -e "SELECT @@version, @@time_zone, @@character_set_database;" genmockup
+mysql -u genmockup -p -e "SELECT @@global.time_zone, @@global.innodb_buffer_pool_size;" genmockup
 ```
+
+Phải ra `+00:00` và `268435456`.
+
+> ⚠️ **File `.cnf` phải đọc được bởi mọi user (644).** Để `600` thì MySQL **bỏ qua file,
+> khởi động bình thường, không log một dòng cảnh báo nào** — mọi thiết lập im lặng trở về
+> mặc định. Triệu chứng duy nhất là `@@global.time_zone` vẫn `SYSTEM` và buffer pool vẫn
+> 128M. Luôn đối chiếu bằng câu lệnh trên chứ đừng tin là đã ăn.
 
 Kiểm tra MySQL không lộ ra ngoài:
 
@@ -255,12 +292,26 @@ GOOGLE_DRIVE_PARENT_FOLDER_ID=
 chmod 600 /srv/genmockup/app/.env
 ```
 
+### `.env` cho Prisma CLI
+
+```bash
+ln -sfn ../../.env /srv/genmockup/app/apps/api/.env
+chown -h genmockup:genmockup /srv/genmockup/app/apps/api/.env
+```
+
+> Bắt buộc, không phải cho tiện. `apps/api/src/env.ts` load `.env` ở gốc repo nên **app**
+> chạy được, nhưng **Prisma CLI** chỉ tìm `.env` cạnh `schema.prisma` và trong thư mục hiện
+> tại — nó không nhìn lên gốc repo. Thiếu symlink này thì `prisma migrate deploy` fail với
+> `P1012 Environment variable not found: DATABASE_URL` dù `.env` có đủ. Máy dev không dính
+> vì ở đó có sẵn một `apps/api/.env` riêng.
+
 ---
 
 ## 6. Tạo schema
 
 ```bash
 cd /srv/genmockup/app
+pnpm prisma:generate        # postinstall của @prisma/client không tự tìm được schema
 pnpm prisma:deploy          # = prisma migrate deploy
 ```
 
@@ -285,14 +336,25 @@ Bỏ qua mục này nếu bắt đầu từ database rỗng.
 
 Hai phần tách rời nhau: **ảnh** copy bằng rsync, **metadata** copy bằng script.
 
-### 7.1 Dừng app cũ
+### 7.1 Lấy bản sao nhất quán của file SQLite
+
+Ở chế độ WAL, `cp` một file SQLite đang chạy có thể ra bản hỏng. Hai cách:
+
+**Dừng app rồi copy** — dứt điểm, dùng khi cắt sang server mới thật sự:
 
 ```powershell
-# trên máy Windows
 scripts\windows\stop.bat
 ```
 
-Bắt buộc dừng hẳn trước khi copy. Ở chế độ WAL, file SQLite đang chạy có thể copy ra bản hỏng.
+**Hoặc snapshot nóng, app vẫn chạy** — dùng khi muốn chạy thử trước mà chưa cắt dịch vụ.
+Dùng online-backup API của SQLite (đọc thuần, không khoá ghi):
+
+```bash
+cd apps/api
+node -e "const D=require('better-sqlite3');const db=new D('../../storage/genmockup.db',{readonly:true});db.backup('/tmp/snapshot.db').then(r=>console.log('pages:',r.totalPages))"
+```
+
+Lúc cắt thật vẫn phải dừng app và lấy lại bản mới, vì snapshot cũ đã lạc hậu.
 
 ### 7.2 Copy ảnh + file SQLite
 
@@ -313,10 +375,21 @@ ls -la /srv/genmockup/storage/genmockup.db      # phải có, script ở 7.3 c�
 
 ### 7.3 Chuyển metadata sang MySQL
 
+Nếu app đã khởi động một lần với DB rỗng, `bootstrapUsers()` đã tạo sẵn một admin từ
+`AUTH_USERNAME`. **Phải xoá nó trước khi chuyển dữ liệu**:
+
+```bash
+mysql -u genmockup -p -e "DELETE FROM users;" genmockup
+```
+
+Bỏ qua bước này thì script dừng ở tiền kiểm tra "bảng đích đã có dữ liệu"; mà nếu ép
+`--force` thì user thật trùng username sẽ bị `skipDuplicates` bỏ qua, và tài khoản còn lại
+là admin bootstrap với mật khẩu tạm — nghe như đăng nhập được nhưng thực ra mất user thật.
+
 ```bash
 cd /srv/genmockup/app
-sudo -u genmockup pnpm migrate:sqlite-to-mysql -- --dry-run    # xem trước, không ghi gì
-sudo -u genmockup pnpm migrate:sqlite-to-mysql                 # chạy thật
+sudo -u genmockup pnpm migrate:sqlite-to-mysql -- --sqlite /đường/dẫn/genmockup.db --dry-run
+sudo -u genmockup pnpm migrate:sqlite-to-mysql -- --sqlite /đường/dẫn/genmockup.db
 ```
 
 Script (`apps/api/scripts/migrate-sqlite-to-mysql.ts`) đọc file SQLite ở
