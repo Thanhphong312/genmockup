@@ -14,6 +14,7 @@
     "build:api": "pnpm --filter api build",
     "build:web": "pnpm --filter web build",
     "prisma:generate": "pnpm --filter api exec prisma generate",
+    "prisma:generate:sqlite": "pnpm --filter api exec prisma generate --schema prisma/schema.sqlite.prisma",
     "prisma:migrate": "pnpm --filter api exec prisma migrate dev",
     "prisma:studio": "pnpm --filter api exec prisma studio",
     "prisma:deploy": "pnpm --filter api exec prisma migrate deploy",

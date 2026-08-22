@@ -95,7 +95,9 @@ designs/<YYYY-MM-DD>/          outputs/<generationId>/<mockupId|variantId>.png
 ### Data model (`apps/api/prisma/schema.prisma`)
 **MySQL 8** (`provider = "mysql"`), database `genmockup`, charset `utf8mb4`. Migrations are committed under `prisma/migrations/`.
 
-The schema was SQLite until Aug 2026; `apps/api/prisma/schema.prisma.sqlite.bak` is the last SQLite version, kept only so the old `storage/genmockup.db` stays readable. `flow.md` and `migrate-from-mysql.ts` predate all of this and describe an unrelated legacy MySQL/XAMPP import — ignore them.
+The schema was SQLite until Aug 2026. `apps/api/prisma/schema.sqlite.prisma` is the SQLite twin, kept because the **Windows box serving `genmockup.primehorizon.studio` still runs on SQLite** until cutover. It is the same models with `provider = "sqlite"` and no `@db.Text`.
+
+> **Trap that has already taken production down once.** `@prisma/client`'s postinstall regenerates the client from `schema.prisma` — now MySQL. So a plain `pnpm install` on the Windows box swaps its client to MySQL while its `.env` still points at SQLite, and the API dies at boot in `ensureAdminUser()` with `P1012 the URL must start with mysql://`. After any `pnpm install` there, run `pnpm prisma:generate:sqlite`. Keep both schema files in sync when editing models. `flow.md` and `migrate-from-mysql.ts` predate all of this and describe an unrelated legacy MySQL/XAMPP import — ignore them.
 
 Two MySQL-specific traps, both commented in `schema.prisma`:
 - MySQL maps `String` to `VARCHAR(191)` and **truncates silently** past that. Every column that can exceed it carries `@db.Text` — the file paths, `AppSetting.value` (holds Drive token JSON), the OpenAI `prompt`/`analysis`/`sellingPoints`, `SkinScene.cornersJson`/`ctrlJson`, and the user-supplied names/titles/keywords. Real data already hit 425 / 1251 / 250 chars in those columns, so this is not theoretical. A column can only take `@db.Text` if it is *not* in an `@id`/`@unique`/`@index`.
