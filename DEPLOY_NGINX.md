@@ -3,12 +3,21 @@
 Hướng dẫn dựng bản production trên Ubuntu 22.04/24.04, chạy sau Nginx + HTTPS, dùng **MySQL 8**.
 Khác với cách đang chạy hiện tại (Windows + SQLite + Cloudflare Tunnel, xem `TUNNEL_SETUP.md`).
 
-> **Trạng thái ngày 22/08/2026** — mục 2→10 đã chạy xong trên `143.244.165.189`:
-> MySQL 8.0.46 + Node 22.23 + Nginx 1.24 + Let's Encrypt, service `genmockup` đang chạy,
-> `https://mockup.primehorizon.studio` truy cập được. Toàn bộ **7.126 dòng metadata** đã
-> chuyển từ SQLite sang MySQL và đối chiếu khớp hash từng bảng.
-> **Còn lại: chưa rsync 12 GB ảnh trong `storage/`** — nên link ảnh hiện còn 404. Bản
-> Windows cũ vẫn đang chạy và vẫn là bản dùng thật; xem mục 7.2 và 11 khi cắt.
+> **Trạng thái ngày 22/08/2026** — toàn bộ mục 2→10 đã chạy xong trên `143.244.165.189`:
+> MySQL 8.0.46 + Node 22.23 + Nginx 1.24 + Let's Encrypt, ba service `genmockup`/`mysql`/`nginx`
+> đều active, `https://mockup.primehorizon.studio` chạy đầy đủ.
+>
+> | Hạng mục | Kết quả |
+> |---|---|
+> | Metadata | 7.126 dòng / 14 bảng, đối chiếu **khớp hash** từng bảng với SQLite nguồn |
+> | Ảnh | 8.259 file / 14,69 GB, khớp tên + kích thước 100%, mẫu 20 file khớp **sha1** |
+> | Đĩa | dùng 20 GB / 232 GB |
+> | Ảnh qua HTTPS | `/files/...` và `/thumb` đều trả 200 đúng content-type |
+>
+> **Chưa cắt.** Bản Windows cũ vẫn đang chạy trên `genmockup.primehorizon.studio` và vẫn là
+> bản dùng thật. Trước khi cắt: dừng app cũ → chạy lại đồng bộ ảnh (chỉ gửi phần chênh) →
+> chuyển lại database → làm mục 11 (extension + Drive OAuth). Dữ liệu trên server mới là
+> ảnh chụp lúc 22/08 15:17, sẽ lạc hậu dần khi người dùng còn dùng bản cũ.
 >
 > Chứng chỉ Let's Encrypt đăng ký **không kèm email** (`--register-unsafely-without-email`)
 > nên không có cảnh báo hết hạn qua mail — tự gia hạn vẫn chạy bằng `certbot.timer`.
