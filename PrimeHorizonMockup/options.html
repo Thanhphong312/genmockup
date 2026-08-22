@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PrimeHorizonMockup — Cài đặt</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #f8fafc;
+        color: #0f172a;
+        max-width: 440px;
+      }
+      h1 { font-size: 18px; margin: 0 0 4px; }
+      p.sub { margin: 0 0 20px; color: #64748b; font-size: 13px; }
+      label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 4px; }
+      input {
+        width: 100%;
+        height: 38px;
+        padding: 0 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+      button {
+        margin-top: 18px;
+        width: 100%;
+        height: 40px;
+        border: none;
+        border-radius: 8px;
+        background: #4f46e5;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover { background: #4338ca; }
+      button.secondary { background: #e2e8f0; color: #0f172a; margin-top: 8px; }
+      button.secondary:hover { background: #cbd5e1; }
+      .status {
+        margin-top: 16px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        display: none;
+      }
+      .status.ok { display: block; background: #dcfce7; color: #166534; }
+      .status.err { display: block; background: #fee2e2; color: #991b1b; }
+      .badge {
+        margin-top: 16px;
+        font-size: 13px;
+        color: #475569;
+      }
+      .badge b { color: #0f172a; }
+    </style>
+  </head>
+  <body>
+    <h1>PrimeHorizonMockup — Cài đặt</h1>
+    <p class="sub">Đăng nhập bằng đúng tài khoản app để ảnh lưu vào thư viện ý tưởng của bạn.</p>
+
+    <div class="badge" id="badge">Đang kiểm tra trạng thái…</div>
+
+    <label for="apiBase">API Base URL</label>
+    <input id="apiBase" type="text" placeholder="https://genmockup.primehorizon.studio" />
+
+    <label for="username">Tài khoản</label>
+    <input id="username" type="text" autocomplete="username" placeholder="username" />
+
+    <label for="password">Mật khẩu</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+
+    <button id="loginBtn">Đăng nhập &amp; lưu</button>
+    <button id="logoutBtn" class="secondary">Đăng xuất</button>
+
+    <div class="status" id="status"></div>
+
+    <script src="options.js"></script>
+  </body>
+</html>

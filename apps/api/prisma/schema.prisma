@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Ghi chú khi đọc file này sau khi đổi SQLite -> MySQL:
+//
+// 1. MySQL map `String` thành VARCHAR(191). Mọi cột có thể dài hơn thế PHẢI gắn
+//    `@db.Text`, nếu không dữ liệu bị CẮT CỤT âm thầm (không báo lỗi). Cụ thể là
+//    các cột đường dẫn file (tên file upload do người dùng đặt), prompt/analysis
+//    của OpenAI, JSON toạ độ của skin scene, và `AppSetting.value` (chứa cả JSON
+//    token Google Drive, dài hơn 191 rất nhiều).
+// 2. Cột nào nằm trong @id / @unique / @index thì KHÔNG được @db.Text (MySQL
+//    không index được TEXT nếu không khai prefix length). Vì vậy `ShirtSet.name`,
+//    `ShirtVariant.color`, `AppSetting.key/userId`, `User.username` giữ VARCHAR.
+// 3. Collation mặc định của MySQL 8 (utf8mb4_0900_ai_ci) KHÔNG phân biệt hoa
+//    thường, khác SQLite. Hệ quả: đăng nhập username hết phân biệt hoa thường, và
+//    @@unique([ownerId, name]) của ShirtSet coi "Set A" trùng "set a".
+//    Script migrate sẽ báo trước nếu dữ liệu cũ có cặp đụng nhau kiểu đó.
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  role         String   @default("user")
+  createdAt    DateTime @default(now())
+
+  @@map("users")
+}
+
+model AppSetting {
+  userId    String
+  key       String
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, key])
+  @@map("app_settings")
+}
+
+model IdeaGeneration {
+  id              String   @id @default(cuid())
+  ownerId         String?
+  title           String   @db.Text
+  keyword         String   @db.Text
+  sourceImagePath String   @db.Text
+  analysis        String?  @db.Text
+  status          String   @default("pending")
+  error           String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  images IdeaImage[]
+
+  @@index([ownerId])
+  @@map("idea_generations")
+}
+
+model IdeaImage {
+  id           String          @id @default(cuid())
+  ownerId      String?
+  generationId String?
+  generation   IdeaGeneration? @relation(fields: [generationId], references: [id], onDelete: SetNull)
+  filePath      String   @db.Text
+  prompt        String?  @db.Text
+  ideaTitle     String?  @db.Text
+  sellingPoints String?  @db.Text
+  keyword       String?  @db.Text
+  title         String?  @db.Text
+  usedCount     Int      @default(0)
+  width         Int
+  height        Int
+  saved         Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([ownerId])
+  @@index([generationId])
+  @@map("idea_images")
+}
+
+model Mockup {
+  id     String @id @default(cuid())
+  ownerId String?
+  name   String @db.Text
+  filePath String @db.Text
+  width  Int
+  height Int
+
+  designX        Int
+  designY        Int
+  designWidth    Int
+  designHeight   Int
+  designRotation Float @default(0)
+
+  watermarkX        Int?
+  watermarkY        Int?
+  watermarkWidth    Int?
+  watermarkHeight   Int?
+  watermarkRotation Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  generationItems GenerationItem[]
+  shares          MockupShare[]
+
+  @@index([ownerId])
+  @@map("mockups")
+}
+
+model MockupShare {
+  id        String   @id @default(cuid())
+  mockupId  String
+  mockup    Mockup   @relation(fields: [mockupId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([mockupId, userId])
+  @@index([userId])
+  @@map("mockup_shares")
+}
+
+model Watermark {
+  id        String   @id @default(cuid())
+  ownerId   String?
+  name      String   @db.Text
+  filePath  String   @db.Text
+  width     Int
+  height    Int
+  createdAt DateTime @default(now())
+
+  generations Generation[]
+
+  @@index([ownerId])
+  @@map("watermarks")
+}
+
+model ShirtSet {
+  id   String @id @default(cuid())
+  ownerId String?
+  name String
+
+  designX        Int
+  designY        Int
+  designWidth    Int
+  designHeight   Int
+  designRotation Float @default(0)
+
+  watermarkX        Int?
+  watermarkY        Int?
+  watermarkWidth    Int?
+  watermarkHeight   Int?
+  watermarkRotation Float?
+
+  representativeColor String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  variants ShirtVariant[]
+  shares   ShirtSetShare[]
+
+  @@unique([ownerId, name])
+  @@index([ownerId])
+  @@map("shirt_sets")
+}
+
+model ShirtSetShare {
+  id        String   @id @default(cuid())
+  setId     String
+  set       ShirtSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([setId, userId])
+  @@index([userId])
+  @@map("shirt_set_shares")
+}
+
+model ShirtVariant {
+  id       String   @id @default(cuid())
+  setId    String
+  set      ShirtSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  color    String
+  filePath String   @db.Text
+  width    Int
+  height   Int
+  createdAt DateTime @default(now())
+
+  generationItems GenerationItem[]
+
+  @@unique([setId, color])
+  @@map("shirt_variants")
+}
+
+/// Mockup card skin: ảnh đã KHOÉT RỖNG mặt thẻ (alpha=0). Design nằm dưới, ảnh này đè lên
+/// nên ngón tay/vật che + bo góc giữ nguyên tự động. Vùng dán lưu bằng 4 góc + 4 control
+/// point Bezier bậc 2 cho 4 cạnh (tả được cả nghiêng phối cảnh lẫn cong nhẹ).
+model SkinScene {
+  id       String  @id @default(cuid())
+  ownerId  String?
+  name     String  @db.Text
+  filePath String  @db.Text
+  width    Int
+  height   Int
+
+  cornersJson String  @db.Text // [[x,y] x4] theo thứ tự TL,TR,BR,BL
+  ctrlJson    String  @db.Text // [[x,y] x4] control point của cạnh TL→TR, TR→BR, BR→BL, BL→TL
+  ratio       Float // tỉ lệ rộng/cao của vùng khoét, để cảnh báo lệch tỉ lệ design
+  calibrated  Boolean @default(false) // đã chỉnh tay hay còn là kết quả dò tự động
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  generationItems GenerationItem[]
+  shares          SkinSceneShare[]
+
+  @@index([ownerId])
+  @@map("skin_scenes")
+}
+
+model SkinSceneShare {
+  id        String    @id @default(cuid())
+  sceneId   String
+  scene     SkinScene @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime  @default(now())
+
+  @@unique([sceneId, userId])
+  @@index([userId])
+  @@map("skin_scene_shares")
+}
+
+model Generation {
+  id          String     @id @default(cuid())
+  ownerId     String?
+  productType String     @default("card")
+  title       String?    @db.Text
+  designPath  String     @db.Text
+  designIsUrl Boolean    @default(false)
+  watermarkId String?
+  watermark   Watermark? @relation(fields: [watermarkId], references: [id])
+  status      String     @default("pending")
+  error       String?    @db.Text
+  durationMs  Int?
+  createdAt   DateTime   @default(now())
+
+  items GenerationItem[]
+
+  @@index([ownerId])
+  @@index([watermarkId])
+  @@map("generations")
+}
+
+model GenerationItem {
+  id           String        @id @default(cuid())
+  generationId String
+  generation   Generation    @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  mockupId     String?
+  mockup       Mockup?       @relation(fields: [mockupId], references: [id])
+  variantId    String?
+  variant      ShirtVariant? @relation(fields: [variantId], references: [id])
+  sceneId      String?
+  scene        SkinScene?    @relation(fields: [sceneId], references: [id])
+  label        String?       @db.Text
+  outputPath   String        @db.Text
+  createdAt    DateTime      @default(now())
+
+  @@index([generationId])
+  @@index([mockupId])
+  @@index([variantId])
+  @@index([sceneId])
+  @@map("generation_items")
+}

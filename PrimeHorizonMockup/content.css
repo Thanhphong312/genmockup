@@ -1,0 +1,78 @@
+/* Cụm 2 nút ở góc trên phải ảnh */
+.bs-btns {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2147483000;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+/* Hiện cụm nút khi hover vào vùng chứa ảnh */
+.bs-img-host:hover > .bs-btns,
+.bs-btns:hover {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.bs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.bs-save-btn { background: #4f46e5; }
+.bs-save-btn:hover { background: #4338ca; }
+.bs-gen-btn { background: #059669; }
+.bs-gen-btn:hover { background: #047857; }
+
+.bs-btn[disabled] {
+  opacity: 0.85;
+  pointer-events: none;
+  cursor: default;
+}
+
+.bs-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 2147483001;
+  max-width: 320px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: #111827;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.bs-toast.bs-show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.bs-toast.bs-ok {
+  background: #059669;
+}
+
+.bs-toast.bs-err {
+  background: #dc2626;
+}

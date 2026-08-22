@@ -1,0 +1,42 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+build/
+.next/
+.turbo/
+
+# env — dùng .env* để bắt cả những bản sao kiểu ".env copy", ".env.bak",
+# ".env - Copy (2)". Đã có lần một file tên `.env copy` lọt qua pattern `.env`
+# vì tên có dấu cách; whitelist lại đúng file mẫu.
+.env*
+!.env.example
+*.env
+
+# storage (user uploads + outputs)
+storage/
+!storage/.gitkeep
+
+# secrets (service account keys, etc)
+secrets/
+!secrets/.gitkeep
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# tsc
+*.tsbuildinfo
+
+# prisma
+apps/api/prisma/migrations/dev.db*

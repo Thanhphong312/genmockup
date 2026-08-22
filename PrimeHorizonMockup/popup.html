@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        width: 760px;
+        margin: 0;
+        padding: 14px;
+        color: #0f172a;
+        background: #f8fafc;
+      }
+      .head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+      .head h1 { font-size: 15px; margin: 0; flex: 1; }
+      .icon-btn {
+        border: 1px solid #cbd5e1; background: #fff; border-radius: 8px;
+        height: 30px; padding: 0 10px; font-size: 12px; cursor: pointer; color: #0f172a;
+      }
+      .icon-btn:hover { background: #f1f5f9; }
+      .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+      .card h2 { font-size: 13px; margin: 0 0 8px; }
+      label { display: block; font-size: 12px; font-weight: 600; margin: 8px 0 4px; }
+      input[type=text], input[type=number], select {
+        width: 100%; height: 34px; padding: 0 10px;
+        border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;
+      }
+      .tabs { display: flex; gap: 6px; margin-bottom: 6px; }
+      .tab {
+        flex: 1; text-align: center; font-size: 12px; padding: 7px 0;
+        border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; background: #fff;
+      }
+      .tab.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+      .cols { display: flex; gap: 14px; }
+      .cols > div:first-child { width: 200px; flex: 0 0 200px; }
+      .cols > div:last-child { flex: 1; }
+      .preview {
+        margin-top: 8px; width: 100%; aspect-ratio: 5/7; border-radius: 8px;
+        background: #f1f5f9 repeating-conic-gradient(#e2e8f0 0% 25%, transparent 0% 50%) 50% / 16px 16px;
+        display: flex; align-items: center; justify-content: center; overflow: hidden;
+        border: 1px dashed #cbd5e1; color: #94a3b8; font-size: 11px;
+      }
+      .preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+      .idea-grid {
+        display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;
+        max-height: 260px; overflow: auto; padding: 4px;
+        border: 1px solid #e2e8f0; border-radius: 8px; background: #fff;
+      }
+      .idea-empty { grid-column: 1 / -1; padding: 12px; text-align: center; color: #94a3b8; font-size: 12px; }
+      .idea-cell {
+        aspect-ratio: 5/7; border-radius: 6px; overflow: hidden; cursor: pointer;
+        border: 2px solid transparent; background: #f1f5f9;
+      }
+      .idea-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .idea-cell:hover { border-color: #c7d2fe; }
+      .idea-cell.sel { border-color: #4f46e5; box-shadow: 0 0 0 2px #c7d2fe; }
+      .idea-cell { position: relative; }
+      .idea-acts {
+        position: absolute; top: 2px; right: 2px; display: flex; gap: 3px;
+        opacity: 0; transition: opacity .12s ease;
+      }
+      .idea-cell:hover .idea-acts { opacity: 1; }
+      .ia-btn {
+        width: 20px; height: 20px; padding: 0; font-size: 11px; line-height: 1;
+        border: none; border-radius: 5px; cursor: pointer;
+        background: rgba(15,23,42,.72); color: #fff;
+      }
+      .ia-btn:hover { background: rgba(15,23,42,.9); }
+      .ia-del.confirm { background: #dc2626; width: auto; padding: 0 5px; }
+      .result { position: relative; }
+      .res-dl {
+        position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0;
+        font-size: 12px; border: none; border-radius: 6px; cursor: pointer;
+        background: rgba(15,23,42,.72); color: #fff; opacity: 0; transition: opacity .12s ease;
+      }
+      .result:hover .res-dl { opacity: 1; }
+      .res-dl:hover { background: rgba(15,23,42,.9); }
+      .row-edit {
+        width: 24px; height: 24px; padding: 0; margin-right: 4px;
+        border: 1px solid #cbd5e1; background: #fff; border-radius: 6px;
+        cursor: pointer; font-size: 12px; color: #475569;
+      }
+      .row-edit:hover { background: #f1f5f9; }
+      .row-edit.on { border-color: #4f46e5; color: #4f46e5; }
+      /* Editor vị trí design */
+      .ae-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+      .ae-modal { background: #fff; border-radius: 12px; padding: 14px; max-width: 92vw; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+      .ae-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+      .ae-head b { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .ae-rot { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #475569; }
+      .ae-rot input { width: 110px; }
+      .primary-sm { height: 30px; padding: 0 12px; border: none; border-radius: 8px; background: #4f46e5; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
+      .primary-sm:hover { background: #4338ca; }
+      .ae-stage { position: relative; margin: 0 auto; background: #f1f5f9 repeating-conic-gradient(#e2e8f0 0 25%, transparent 0 50%) 50% / 20px 20px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; touch-action: none; }
+      #aeMockup { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+      .ae-box { position: absolute; border: 2px solid #4f46e5; cursor: move; touch-action: none; }
+      #aeDesign { width: 100%; height: 100%; object-fit: fill; display: block; opacity: .85; pointer-events: none; }
+      .ae-handle { position: absolute; right: -7px; bottom: -7px; width: 14px; height: 14px; background: #4f46e5; border: 2px solid #fff; border-radius: 50%; cursor: nwse-resize; touch-action: none; }
+      .ae-hint { margin-top: 8px; font-size: 11px; color: #94a3b8; text-align: center; }
+      /* Quản lý bộ áo */
+      .mgr-modal { width: 560px; max-width: 92vw; }
+      .mgr-line { display: flex; gap: 8px; margin-bottom: 10px; }
+      .mgr-line input[type=text], .mgr-line select { flex: 1; height: 34px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
+      .mgr-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; max-height: 300px; overflow: auto; }
+      .mgr-cell { position: relative; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fff; }
+      .mgr-cell img { width: 100%; aspect-ratio: 5/7; object-fit: cover; display: block; background: #f1f5f9; }
+      .mgr-lbl { font-size: 11px; padding: 4px 6px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .mgr-del { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0; border: none; border-radius: 6px; cursor: pointer; background: rgba(220,38,38,.85); color: #fff; font-size: 12px; }
+      .mgr-del:hover { background: #dc2626; }
+      .hint { padding: 12px; color: #94a3b8; font-size: 12px; }
+      .hint.err { color: #991b1b; }
+      .list { max-height: 300px; overflow: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+      .item {
+        display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+        border-bottom: 1px solid #f1f5f9; cursor: pointer; font-size: 12px;
+      }
+      .item:last-child { border-bottom: none; }
+      .item:hover { background: #f8fafc; }
+      .item.sel { background: #eef2ff; }
+      .item img { width: 34px; height: 34px; object-fit: cover; border-radius: 5px; background: #f1f5f9; }
+      .item .meta { flex: 1; min-width: 0; }
+      .item .meta b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .item .meta span { color: #94a3b8; font-size: 10px; }
+      button.primary {
+        width: 100%; height: 38px; border: none; border-radius: 8px; background: #4f46e5;
+        color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+      }
+      button.primary:hover { background: #4338ca; }
+      button.primary:disabled { background: #a5b4fc; cursor: not-allowed; }
+      button.ghost {
+        height: 28px; font-size: 11px; padding: 0 8px; border: 1px solid #cbd5e1;
+        background: #fff; border-radius: 7px; cursor: pointer; color: #0f172a;
+      }
+      button.ghost:hover { background: #f1f5f9; }
+      .toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+      .toolbar .count { margin-left: auto; font-size: 11px; color: #64748b; }
+      .status { margin-top: 8px; padding: 8px 10px; border-radius: 8px; font-size: 12px; display: none; }
+      .status.ok { display: block; background: #dcfce7; color: #166534; }
+      .status.err { display: block; background: #fee2e2; color: #991b1b; }
+      .status.info { display: block; background: #e0f2fe; color: #075985; }
+      .results { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 4px; }
+      .result a { display: block; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #fff; }
+      .result img { width: 100%; display: block; aspect-ratio: 5/7; object-fit: cover; }
+      .result .lbl { font-size: 10px; padding: 4px 6px; color: #475569; }
+      .warn {
+        padding: 10px; background: #fef3c7; color: #92400e; border-radius: 8px;
+        font-size: 12px; margin-bottom: 10px; display: none;
+      }
+      a.link { color: #4f46e5; text-decoration: none; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="head">
+      <h1>🎨 Generate mockup</h1>
+      <button class="icon-btn" id="settingsBtn">⚙ Cài đặt</button>
+    </div>
+
+    <div class="warn" id="authWarn">
+      Chưa đăng nhập. <a class="link" href="#" id="openOpts">Mở Cài đặt để đăng nhập</a>.
+    </div>
+
+    <div class="card">
+      <div class="cols">
+        <div>
+          <div class="tabs">
+            <div class="tab active" data-src="file" style="font-size:11px">File</div>
+            <div class="tab" data-src="url" style="font-size:11px">URL</div>
+            <div class="tab" data-src="idea" style="font-size:11px">Idea</div>
+          </div>
+          <div id="srcFile"><input type="file" id="designFile" accept="image/*" style="font-size:11px" /></div>
+          <div id="srcUrl" style="display:none"><input type="text" id="designUrl" placeholder="https://…/design.png" /></div>
+          <div class="preview" id="preview">Chưa có design</div>
+        </div>
+        <div>
+          <div class="tabs">
+            <div class="tab active" data-type="shirt" style="font-size:11px">Bộ áo</div>
+            <div class="tab" data-type="card" style="font-size:11px">Mockup</div>
+          </div>
+          <div id="shirtOpts">
+            <label for="count">Số màu random</label>
+            <input type="number" id="count" min="1" max="100" value="6" />
+          </div>
+          <label for="watermark">Watermark</label>
+          <select id="watermark"><option value="">— Không —</option></select>
+        </div>
+      </div>
+      <!-- Lưới ảnh ý tưởng (full width khi chọn tab Idea) -->
+      <div id="srcIdea" style="display:none;margin-top:10px">
+        <div id="ideaGrid" class="idea-grid"><div class="idea-empty">Chọn ý tưởng…</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 id="listTitle">Chọn bộ áo</h2>
+      <div class="toolbar">
+        <button class="ghost" id="selAll">Chọn tất cả</button>
+        <button class="ghost" id="selNone">Bỏ chọn</button>
+        <button class="ghost" id="uploadMockupBtn" style="display:none">⬆ Upload mockup</button>
+        <button class="ghost" id="manageSetsBtn" style="display:none">⚙ Quản lý bộ</button>
+        <span class="count" id="selCount">Đã chọn 0</span>
+      </div>
+      <input type="file" id="uploadInput" accept="image/*" multiple style="display:none" />
+      <input type="text" id="search" placeholder="Tìm theo tên…" style="margin-bottom:8px" />
+      <div class="list" id="list"><div style="padding:12px;color:#94a3b8;font-size:12px">Đang tải…</div></div>
+    </div>
+
+    <button class="primary" id="genBtn" disabled>Generate</button>
+    <div class="status" id="status"></div>
+
+    <div class="card" id="resultCard" style="display:none;margin-top:10px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <h2 style="margin:0;flex:1">Kết quả <span id="resMeta" style="font-weight:400;color:#64748b;font-size:11px"></span></h2>
+        <button class="ghost" id="dlAll">⬇ Tải tất cả</button>
+      </div>
+      <div class="results" id="results"></div>
+    </div>
+
+    <!-- Editor căn chỉnh vị trí design trên mockup -->
+    <div id="areaEditor" class="ae-overlay" style="display:none">
+      <div class="ae-modal">
+        <div class="ae-head">
+          <b id="aeTitle">Vị trí design</b>
+          <div class="ae-rot"><span>Xoay</span><input type="range" id="aeRot" min="-180" max="180" value="0" /><span id="aeRotVal">0°</span></div>
+          <button class="ghost" id="aeReset">Reset</button>
+          <button class="primary-sm" id="aeClose">Xong</button>
+        </div>
+        <div class="ae-stage" id="aeStage">
+          <img id="aeMockup" alt="" />
+          <div id="aeBox" class="ae-box">
+            <img id="aeDesign" alt="" />
+            <div id="aeHandle" class="ae-handle"></div>
+          </div>
+        </div>
+        <div class="ae-hint">Kéo khung để di chuyển · kéo góc phải-dưới để resize · thanh trượt để xoay.</div>
+      </div>
+    </div>
+
+    <!-- Quản lý bộ áo: tạo folder + upload từng màu -->
+    <div id="setMgr" class="ae-overlay" style="display:none">
+      <div class="ae-modal mgr-modal">
+        <div class="ae-head">
+          <b>Quản lý bộ áo</b><span style="flex:1"></span>
+          <button class="primary-sm" id="mgrClose">Đóng</button>
+        </div>
+        <div class="mgr-line">
+          <input type="text" id="mgrNewName" placeholder="Tên bộ mới…" />
+          <button class="ghost" id="mgrCreate">＋ Tạo bộ</button>
+        </div>
+        <div class="mgr-line">
+          <select id="mgrSetSelect" style="flex:1"></select>
+          <button class="ghost" id="mgrDelSet">🗑 Xoá bộ</button>
+        </div>
+        <div class="mgr-line">
+          <input type="text" id="mgrColor" placeholder="Tên màu (bỏ trống = theo tên file)" />
+          <input type="file" id="mgrFiles" accept="image/*" multiple style="display:none" />
+          <button class="ghost" id="mgrAddBtn">⬆ Thêm màu</button>
+        </div>
+        <div class="mgr-grid" id="mgrVariants"></div>
+        <div class="ae-hint" id="mgrStatus"></div>
+      </div>
+    </div>
+
+    <!-- Đăng nhập ngay trong popup -->
+    <div id="loginOverlay" class="ae-overlay" style="display:none">
+      <div class="ae-modal" style="width:320px;max-width:92vw">
+        <div class="ae-head" style="margin-bottom:12px"><b>🎨 Đăng nhập PrimeHorizonMockup</b></div>
+        <input type="hidden" id="loginApiBase" />
+        <label style="display:block;font-size:12px;font-weight:600;margin:8px 0 4px">Tài khoản</label>
+        <input type="text" id="loginUser" autocomplete="username" style="width:100%;height:36px;padding:0 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px" />
+        <label style="display:block;font-size:12px;font-weight:600;margin:10px 0 4px">Mật khẩu</label>
+        <input type="password" id="loginPass" autocomplete="current-password" style="width:100%;height:36px;padding:0 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px" />
+        <button class="primary-sm" id="loginBtn" style="width:100%;height:38px;margin-top:12px">Đăng nhập</button>
+        <div id="loginStatus" style="margin-top:8px;font-size:12px;color:#dc2626;text-align:center"></div>
+      </div>
+    </div>
+
+    <script src="generate.js"></script>
+  </body>
+</html>
