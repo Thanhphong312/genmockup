@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { Area, Generation } from '@genmockup/shared';
+import type { Area, Generation, SceneKind } from '@genmockup/shared';
 
 export interface GenerateOptions {
   designFile?: File;
@@ -66,26 +66,29 @@ export async function generateShirt(opts: GenerateShirtOptions): Promise<Generat
 }
 
 export interface GenerateSkinOptions {
+  /** card → /generate/skin, pass → /generate/pass */
+  kind: SceneKind;
   designFile?: File;
   designUrl?: string;
   designImageId?: string;
   sceneIds: string[];
 }
 
-/** Kết quả generate card skin, kèm cảnh báo lệch tỉ lệ nếu có. */
+/** Kết quả generate card skin / pass sleeve, kèm cảnh báo lệch tỉ lệ nếu có. */
 export type SkinGeneration = Generation & { ratioWarning?: string | null };
 
 export async function generateSkin(opts: GenerateSkinOptions): Promise<SkinGeneration> {
+  const url = opts.kind === 'pass' ? '/generate/pass' : '/generate/skin';
   if (opts.designFile) {
     const fd = new FormData();
     fd.append('designFile', opts.designFile);
     fd.append('sceneIds', JSON.stringify(opts.sceneIds));
-    const { data } = await api.post<SkinGeneration>('/generate/skin', fd, {
+    const { data } = await api.post<SkinGeneration>(url, fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return data;
   }
-  const { data } = await api.post<SkinGeneration>('/generate/skin', {
+  const { data } = await api.post<SkinGeneration>(url, {
     designUrl: opts.designUrl,
     designImageId: opts.designImageId,
     sceneIds: opts.sceneIds,

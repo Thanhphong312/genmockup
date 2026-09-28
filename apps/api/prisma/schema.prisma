@@ -204,6 +204,8 @@ model ShirtVariant {
 model SkinScene {
   id       String  @id @default(cuid())
   ownerId  String?
+  /// card = card skin (khoét cả mặt thẻ) | pass = pass sleeve (khoét một phần, vùng dán ngoại suy)
+  kind     String  @default("card")
   name     String  @db.Text
   filePath String  @db.Text
   width    Int

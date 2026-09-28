@@ -9,6 +9,7 @@ import type {
   IdeaImage,
   IdeaGeneration,
 } from '@prisma/client';
+import type { SceneKind } from '@genmockup/shared';
 import { buildPublicUrl } from './storage.js';
 
 export function ideaImageToDto(i: IdeaImage) {
@@ -124,9 +125,15 @@ export function shirtSetToDto(s: ShirtSet & { variants?: ShirtVariant[] }) {
   };
 }
 
+/** Giá trị lạ trong DB (hoặc query string) quy về card — loại gốc. */
+export function toSceneKind(v: unknown): SceneKind {
+  return v === 'pass' ? 'pass' : 'card';
+}
+
 export function skinSceneToDto(s: SkinScene) {
   return {
     id: s.id,
+    kind: toSceneKind(s.kind),
     name: s.name,
     filePath: s.filePath,
     fileUrl: buildPublicUrl(s.filePath),
@@ -156,7 +163,7 @@ export function watermarkToDto(w: Watermark) {
 export function generationToDto(g: Generation & { items: GenerationItem[] }) {
   return {
     id: g.id,
-    productType: g.productType as 'card' | 'shirt' | 'skin',
+    productType: g.productType as 'card' | 'shirt' | 'skin' | 'pass',
     title: g.title,
     designPath: g.designPath,
     designIsUrl: g.designIsUrl,

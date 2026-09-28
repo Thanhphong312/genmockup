@@ -1,4 +1,5 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { SceneKind } from '@genmockup/shared';
 import { prisma } from '../services/db.js';
 import { saveFile, saveOutput, extFromMime } from '../services/storage.js';
 import { compose, fetchDesign, readStoredFile } from '../services/composer.js';
@@ -469,10 +470,11 @@ export async function generateRoutes(app: FastifyInstance) {
   });
 
   /**
-   * Card skin: design nằm dưới, mockup đã khoét lỗ đè lên. Không có watermark/count —
+   * Card skin / pass sleeve: design nằm dưới, mockup đã khoét lỗ đè lên. Không có watermark/count —
    * mỗi scene được chọn cho ra đúng 1 ảnh, vị trí lấy từ vùng đã calibrate của scene.
+   * Hai loại dùng chung pipeline; chỉ khác loại scene được chọn và productType ghi lại.
    */
-  app.post('/api/generate/skin', async (req, reply) => {
+  const sceneGenerate = (kind: SceneKind) => async (req: FastifyRequest, reply: FastifyReply) => {
     const started = Date.now();
     const ownerId = requireUserId(req);
 
@@ -485,7 +487,7 @@ export async function generateRoutes(app: FastifyInstance) {
     const generation = await prisma.generation.create({
       data: {
         ownerId,
-        productType: 'skin',
+        productType: kind === 'pass' ? 'pass' : 'skin',
         title: ideaListingTitle || null,
         designPath,
         designIsUrl,
@@ -497,6 +499,7 @@ export async function generateRoutes(app: FastifyInstance) {
       const scenes = await prisma.skinScene.findMany({
         where: {
           id: { in: sceneIds },
+          kind,
           OR: [{ ownerId }, { shares: { some: { userId: ownerId } } }],
         },
       });
@@ -556,7 +559,10 @@ export async function generateRoutes(app: FastifyInstance) {
       });
       return reply.code(500).send({ error: 'generate_failed', message: err?.message });
     }
-  });
+  };
+
+  app.post('/api/generate/skin', sceneGenerate('card'));
+  app.post('/api/generate/pass', sceneGenerate('pass'));
 
   app.get('/api/generations/:id', async (req, reply) => {
     const ownerId = requireUserId(req);

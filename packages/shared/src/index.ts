@@ -71,8 +71,18 @@ export type Point = [number, number];
  */
 export type Quad = [Point, Point, Point, Point];
 
+/**
+ * Loại mockup khoét lỗ. Cùng pipeline ghép (design nằm dưới, mockup đè lên), chỉ khác cách dò:
+ * - card: khoét cả mặt thẻ (card skin).
+ * - pass: pass sleeve — chỉ khoét một phần mặt thẻ, phần còn lại in sẵn; vùng dán ngoại suy
+ *   ra cả mặt thẻ từ 3 cạnh thẳng của vùng khoét.
+ */
+export type SceneKind = 'card' | 'pass';
+export const SCENE_KINDS: SceneKind[] = ['card', 'pass'];
+
 export interface SkinScene {
   id: string;
+  kind: SceneKind;
   name: string;
   filePath: string;
   fileUrl: string;
@@ -110,6 +120,7 @@ export interface UpdateSkinSceneRequest {
 }
 
 export interface GenerateSkinRequest {
+  kind?: SceneKind;
   designUrl?: string;
   designImageId?: string;
   sceneIds: string[];
@@ -126,7 +137,7 @@ export interface GenerationItem {
 
 export interface Generation {
   id: string;
-  productType: 'card' | 'shirt' | 'skin';
+  productType: 'card' | 'shirt' | 'skin' | 'pass';
   title: string | null;
   designPath: string;
   designIsUrl: boolean;
@@ -209,5 +220,5 @@ export interface UpdateMockupRequest {
 
 export const DESIGN_RATIO = 5 / 7;
 
-/** Thẻ ATM/credit chuẩn ISO 7810 ID-1: 85.6 × 54 mm. Dùng cho card skin. */
+/** Thẻ ATM/credit chuẩn ISO 7810 ID-1: 85.6 × 54 mm. Dùng cho card skin và pass sleeve. */
 export const CARD_SKIN_RATIO = 85.6 / 54;

@@ -3,7 +3,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { prisma } from '../services/db.js';
 import { deleteFile, saveFile, extFromMime } from '../services/storage.js';
-import { skinSceneToDto } from '../services/dto.js';
+import { skinSceneToDto, toSceneKind } from '../services/dto.js';
 import { detectHole } from '../services/holeDetect.js';
 import { composeSkinPreview } from '../services/skin.js';
 import { readStoredFile } from '../services/composer.js';
@@ -50,13 +50,16 @@ export async function skinScenesRoutes(app: FastifyInstance) {
 
   app.get(
     '/api/skin-scenes',
-    { schema: { tags: ['SkinScenes'], summary: 'List mockup card skin (của tôi + được chia sẻ; admin thêm ?all=1)' } },
+    { schema: { tags: ['SkinScenes'], summary: 'List mockup card skin / pass sleeve (của tôi + được chia sẻ; ?kind=card|pass; admin thêm ?all=1)' } },
     async (req) => {
       const uid = requireUserId(req);
+      const q = (req.query || {}) as { all?: string; kind?: string };
+      // không truyền kind = trả cả hai loại (giữ tương thích client cũ)
+      const kindWhere = q.kind ? { kind: toSceneKind(q.kind) } : {};
 
       // ?all=1 (chỉ admin): xem scene của mọi user để đổi chủ sở hữu / chia sẻ hộ.
-      if (String((req.query as { all?: string })?.all ?? '') === '1' && getSession(req)?.role === 'admin') {
-        const rows = await prisma.skinScene.findMany({ orderBy: { createdAt: 'desc' } });
+      if (String(q.all ?? '') === '1' && getSession(req)?.role === 'admin') {
+        const rows = await prisma.skinScene.findMany({ where: kindWhere, orderBy: { createdAt: 'desc' } });
         const owners = await prisma.user.findMany({ select: { id: true, username: true } });
         const nameOf = (id: string | null) => owners.find((o) => o.id === id)?.username ?? null;
         return rows.map((s) => ({
@@ -67,11 +70,11 @@ export async function skinScenesRoutes(app: FastifyInstance) {
       }
 
       const owned = await prisma.skinScene.findMany({
-        where: { ownerId: uid },
+        where: { ownerId: uid, ...kindWhere },
         orderBy: { createdAt: 'desc' },
       });
       const shares = await prisma.skinSceneShare.findMany({
-        where: { userId: uid },
+        where: { userId: uid, scene: kindWhere },
         include: { scene: true },
         orderBy: { createdAt: 'desc' },
       });
@@ -91,7 +94,7 @@ export async function skinScenesRoutes(app: FastifyInstance) {
 
   app.get(
     '/api/skin-scenes/:id',
-    { schema: { tags: ['SkinScenes'], summary: 'Chi tiết 1 mockup card skin' } },
+    { schema: { tags: ['SkinScenes'], summary: 'Chi tiết 1 mockup card skin / pass sleeve' } },
     async (req, reply) => {
       const uid = requireUserId(req);
       const { id } = req.params as { id: string };
@@ -107,13 +110,14 @@ export async function skinScenesRoutes(app: FastifyInstance) {
    */
   app.post(
     '/api/skin-scenes',
-    { schema: { tags: ['SkinScenes'], summary: 'Upload mockup đã khoét lỗ (JSON base64 hoặc multipart)' } },
+    { schema: { tags: ['SkinScenes'], summary: 'Upload mockup đã khoét lỗ (JSON base64 hoặc multipart; kind=card|pass)' } },
     async (req, reply) => {
       const ownerId = requireUserId(req);
 
       let buffer: Buffer | null = null;
       let mime = 'image/png';
       let name = '';
+      let kindRaw: unknown = (req.query as { kind?: string })?.kind;
 
       const ct = String(req.headers['content-type'] || '');
       if (ct.includes('multipart/form-data')) {
@@ -124,10 +128,13 @@ export async function skinScenesRoutes(app: FastifyInstance) {
             if (!name) name = path.basename(part.filename || '', path.extname(part.filename || ''));
           } else if (part.type === 'field' && part.fieldname === 'name') {
             name = String(part.value).trim();
+          } else if (part.type === 'field' && part.fieldname === 'kind') {
+            kindRaw = part.value;
           }
         }
       } else {
-        const body = (req.body || {}) as { name?: string; imageBase64?: string; filename?: string };
+        const body = (req.body || {}) as { name?: string; imageBase64?: string; filename?: string; kind?: string };
+        if (body.kind) kindRaw = body.kind;
         name = (body.name || body.filename || '').replace(/\.[^.]+$/, '').trim();
         if (body.imageBase64) {
           const m = /^data:([^;]+);base64,(.*)$/s.exec(body.imageBase64);
@@ -144,9 +151,10 @@ export async function skinScenesRoutes(app: FastifyInstance) {
         });
       }
 
+      const kind = toSceneKind(kindRaw);
       let geo;
       try {
-        geo = await detectHole(buffer);
+        geo = await detectHole(buffer, kind);
       } catch (err: any) {
         const messages: Record<string, string> = {
           no_transparent_hole: 'Không tìm thấy vùng trong suốt. Cần khoét rỗng mặt thẻ trước khi upload.',
@@ -154,7 +162,10 @@ export async function skinScenesRoutes(app: FastifyInstance) {
             'Đây là file design (4 góc ảnh trong suốt do bo góc thẻ), không phải ảnh mockup đã khoét lỗ.',
           hole_too_small:
             'Vùng trong suốt quá nhỏ so với khung hình — có thể mới chỉ khoét lỗ chip chứ chưa khoét mặt thẻ.',
-          hole_shape_unclear: 'Không xác định được 4 cạnh của vùng khoét.',
+          hole_shape_unclear:
+            kind === 'pass'
+              ? 'Không xác định được 3 cạnh thẳng của vùng khoét (trên/dưới + mép thẻ phía đối diện phần in sẵn).'
+              : 'Không xác định được 4 cạnh của vùng khoét.',
         };
         return reply.code(400).send({
           error: err?.message || 'detect_failed',
@@ -166,7 +177,8 @@ export async function skinScenesRoutes(app: FastifyInstance) {
       const scene = await prisma.skinScene.create({
         data: {
           ownerId,
-          name: name || 'scene',
+          kind,
+          name: name || kind,
           filePath: saved.relativePath,
           width: geo.width,
           height: geo.height,
@@ -190,7 +202,7 @@ export async function skinScenesRoutes(app: FastifyInstance) {
       if (!scene) return reply.code(404).send({ error: 'not_found' });
 
       const buffer = await readStoredFile(scene.filePath);
-      const geo = await detectHole(buffer);
+      const geo = await detectHole(buffer, toSceneKind(scene.kind));
       const updated = await prisma.skinScene.update({
         where: { id },
         data: {
@@ -286,7 +298,7 @@ export async function skinScenesRoutes(app: FastifyInstance) {
 
   app.delete(
     '/api/skin-scenes/:id',
-    { schema: { tags: ['SkinScenes'], summary: 'Xoá mockup card skin (cả file + DB)' } },
+    { schema: { tags: ['SkinScenes'], summary: 'Xoá mockup card skin / pass sleeve (cả file + DB)' } },
     async (req, reply) => {
       const ownerId = requireUserId(req);
       const { id } = req.params as { id: string };

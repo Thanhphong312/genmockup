@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Route, Routes, Navigate } from 'react-router-dom';
-import { Image, Shirt, CreditCard, Droplet, Sparkles, Wand2, Settings, Users, User, BookOpen, LogOut, Menu, X } from 'lucide-react';
+import { Image, Shirt, CreditCard, IdCard, Droplet, Sparkles, Wand2, Settings, Users, User, BookOpen, LogOut, Menu, X } from 'lucide-react';
 import MockupsPage from './pages/MockupsPage';
 import MockupEditorPage from './pages/MockupEditorPage';
 import ShirtSetsPage from './pages/ShirtSetsPage';
@@ -85,6 +85,8 @@ function Shell() {
           <NavItem to="/shirt-sets" icon={<Shirt className="w-4 h-4" />} label="Bộ áo" onNavigate={close} />
           <NavItem to="/skin-scenes" icon={<CreditCard className="w-4 h-4" />} label="Mockup Card Skin" onNavigate={close} />
           <NavItem to="/skin-generate" icon={<CreditCard className="w-4 h-4" />} label="Gen Card Skin" onNavigate={close} />
+          <NavItem to="/pass-scenes" icon={<IdCard className="w-4 h-4" />} label="Mockup Pass Sleeve" onNavigate={close} />
+          <NavItem to="/pass-generate" icon={<IdCard className="w-4 h-4" />} label="Gen Pass Sleeve" onNavigate={close} />
           <NavItem to="/ideas" icon={<Wand2 className="w-4 h-4" />} label="New Idea" onNavigate={close} />
           <NavItem to="/watermarks" icon={<Droplet className="w-4 h-4" />} label="Watermarks" onNavigate={close} />
           <NavItem to="/generate" icon={<Sparkles className="w-4 h-4" />} label="Generate" onNavigate={close} />
@@ -115,9 +117,12 @@ function Shell() {
           <Route path="/mockups/:id/edit" element={<MockupEditorPage />} />
           <Route path="/shirt-sets" element={<ShirtSetsPage />} />
           <Route path="/shirt-sets/:id/edit" element={<ShirtSetEditorPage />} />
-          <Route path="/skin-scenes" element={<SkinScenesPage />} />
+          <Route path="/skin-scenes" element={<SkinScenesPage key="card" kind="card" />} />
           <Route path="/skin-scenes/:id/edit" element={<SkinSceneEditorPage />} />
-          <Route path="/skin-generate" element={<SkinGeneratePage />} />
+          <Route path="/skin-generate" element={<SkinGeneratePage key="card" kind="card" />} />
+          <Route path="/pass-scenes" element={<SkinScenesPage key="pass" kind="pass" />} />
+          <Route path="/pass-scenes/:id/edit" element={<SkinSceneEditorPage />} />
+          <Route path="/pass-generate" element={<SkinGeneratePage key="pass" kind="pass" />} />
           <Route path="/ideas" element={<NewIdeaPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/docs" element={<DocsPage />} />

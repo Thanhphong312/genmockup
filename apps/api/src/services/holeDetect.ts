@@ -9,6 +9,7 @@
  * Bao lồi bắc cầu qua chỗ lõm bằng dây cung trùng đúng mép thẻ.
  */
 import sharp from 'sharp';
+import { CARD_SKIN_RATIO, type SceneKind } from '@genmockup/shared';
 import type { Point } from './perspective.js';
 import { quadSize } from './perspective.js';
 
@@ -209,8 +210,70 @@ function bezierCtrl(P0: Point, P2: Point, pts: Point[]): Point {
 
 const CORNER_CUT = 0.14; // bỏ 14% ở 2 đầu mỗi cạnh để tránh vùng bo góc
 
-/** Dò vùng khoét từ buffer ảnh PNG có alpha. Ném lỗi nếu ảnh không có vùng rỗng. */
-export async function detectHole(buffer: Buffer): Promise<HoleGeometry> {
+/** RMS khoảng cách tới đường fit — cạnh cong (mép hở của pass sleeve) cho số lớn hẳn. */
+function rmsResidual(pts: Point[]): number {
+  const L = fitLine(pts);
+  let s = 0;
+  for (const p of pts) s += distTo(L, p) ** 2;
+  return Math.sqrt(s / pts.length);
+}
+
+/**
+ * Pass sleeve: mockup chỉ khoét MỘT PHẦN mặt thẻ (phần còn lại là logo/viền in sẵn, đục), nên
+ * vùng khoét chỉ có 3 cạnh thẳng trùng mép thẻ, cạnh thứ 4 là đường cong ranh giới vùng in.
+ * Design vẫn phủ CẢ mặt thẻ → giữ 3 cạnh thẳng, bỏ cạnh cong, ngoại suy 2 góc phía đó theo
+ * tỉ lệ thẻ chuẩn. Phần design nằm dưới vùng in đục bị che, không lộ ra.
+ */
+function passCorners(lines: { L: Line; pts: Point[] }[], buckets: Point[][], hull: Point[]) {
+  // đo trên điểm THÔ của từng cạnh: robustLine đã lọc bỏ phần cong như outlier nên pts của nó trông thẳng
+  const open = buckets
+    .map((b, k) => ({ k, r: rmsResidual(b) }))
+    .reduce((m, x) => (x.r > m.r ? x : m)).k;
+  const sideA = (open + 1) % 4; // cạnh bên: góc (open+2) → góc (open+1)
+  const far = (open + 2) % 4; // cạnh đối diện cạnh hở — mép thẻ thật
+  const sideB = (open + 3) % 4; // cạnh bên: góc (open+3) → góc (open)
+
+  const farA = intersect(lines[sideA].L, lines[far].L);
+  const farB = intersect(lines[far].L, lines[sideB].L);
+  if (!farA || !farB) throw new Error('hole_shape_unclear');
+
+  const openPts = lines[open].pts;
+  const oc: Point = [
+    openPts.reduce((s, p) => s + p[0], 0) / openPts.length,
+    openPts.reduce((s, p) => s + p[1], 0) / openPts.length,
+  ];
+  /** vector đơn vị dọc cạnh bên, quay về phía cạnh hở */
+  const towardOpen = (L: Line, from: Point): Point => {
+    const s = Math.sign((oc[0] - from[0]) * L.d[0] + (oc[1] - from[1]) * L.d[1]) || 1;
+    return [L.d[0] * s, L.d[1] * s];
+  };
+  const dA = towardOpen(lines[sideA].L, farA);
+  const dB = towardOpen(lines[sideB].L, farB);
+
+  // vùng khoét đã trải xa tới đâu dọc cạnh bên — thẻ không thể ngắn hơn chỗ đó
+  const reach = (from: Point, d: Point) =>
+    Math.max(...hull.map((p) => (p[0] - from[0]) * d[0] + (p[1] - from[1]) * d[1]));
+  const extent = Math.max(reach(farA, dA), reach(farB, dB));
+
+  // Cạnh đối diện là cạnh ngắn hay cạnh dài của thẻ: coi là cạnh dài mà vẫn không phủ nổi
+  // phần đã khoét thì chắc chắn nó là cạnh ngắn.
+  const Lfar = Math.hypot(farA[0] - farB[0], farA[1] - farB[1]);
+  const asLong = Lfar / CARD_SKIN_RATIO;
+  const ext = Math.max(asLong >= extent * 0.97 ? asLong : Lfar * CARD_SKIN_RATIO, extent);
+
+  const corners: Point[] = [];
+  corners[far] = farA;
+  corners[sideB] = farB;
+  corners[sideA] = [farA[0] + dA[0] * ext, farA[1] + dA[1] * ext];
+  corners[open] = [farB[0] + dB[0] * ext, farB[1] + dB[1] * ext];
+  return { corners: corners.map((c) => [Math.round(c[0]), Math.round(c[1])] as Point), open };
+}
+
+/**
+ * Dò vùng khoét từ buffer ảnh PNG có alpha. Ném lỗi nếu ảnh không có vùng rỗng.
+ * `kind = 'pass'`: vùng khoét chỉ là một phần mặt thẻ — xem `passCorners`.
+ */
+export async function detectHole(buffer: Buffer, kind: SceneKind = 'card'): Promise<HoleGeometry> {
   const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const W = info.width;
   const H = info.height;
@@ -277,14 +340,26 @@ export async function detectHole(buffer: Buffer): Promise<HoleGeometry> {
   if (buckets.some((b) => b.length < 12)) throw new Error('hole_shape_unclear');
 
   const lines = buckets.map(robustLine);
-  const corners: Point[] = [];
-  for (let k = 0; k < 4; k++) {
-    const ip = intersect(lines[(k + 3) % 4].L, lines[k].L);
-    corners.push(ip ? [Math.round(ip[0]), Math.round(ip[1])] : rect[k]);
+  let corners: Point[] = [];
+  let ctrl: Point[];
+  let open = -1;
+  if (kind === 'pass') {
+    ({ corners, open } = passCorners(lines, buckets, hull));
+    // bao nhựa phẳng, còn 2 cạnh bên chỉ khoét được một đoạn — fit độ cong trên đó không đáng tin
+    ctrl = corners.map((c, k) => {
+      const n = corners[(k + 1) % 4];
+      return [(c[0] + n[0]) / 2, (c[1] + n[1]) / 2] as Point;
+    });
+  } else {
+    for (let k = 0; k < 4; k++) {
+      const ip = intersect(lines[(k + 3) % 4].L, lines[k].L);
+      corners.push(ip ? [Math.round(ip[0]), Math.round(ip[1])] : rect[k]);
+    }
+    ctrl = corners.map((c, k) => bezierCtrl(c, corners[(k + 1) % 4], lines[k].pts));
   }
 
-  const ctrl = corners.map((c, k) => bezierCtrl(c, corners[(k + 1) % 4], lines[k].pts));
-  const bend = lines.map(({ L, pts }) => {
+  const bend = lines.map(({ L, pts }, k) => {
+    if (k === open) return 0;
     let mx = 0;
     for (const p of pts) {
       const d = distTo(L, p);

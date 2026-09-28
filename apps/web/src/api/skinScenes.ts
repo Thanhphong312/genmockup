@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { Quad, SkinScene, UpdateSkinSceneRequest } from '@genmockup/shared';
+import type { Quad, SceneKind, SkinScene, UpdateSkinSceneRequest } from '@genmockup/shared';
 import { fileToDataUrl } from '../lib/img';
 
 /** Scene kèm độ cong 4 cạnh — chỉ có ngay sau khi dò tự động. */
@@ -8,8 +8,8 @@ export interface SkinSceneWithBend extends SkinScene {
 }
 
 /** `all` (chỉ admin) = xem scene của mọi user, để đổi chủ sở hữu. */
-export async function listSkinScenes(all = false): Promise<SkinScene[]> {
-  const { data } = await api.get<SkinScene[]>('/skin-scenes', { params: all ? { all: 1 } : {} });
+export async function listSkinScenes(kind: SceneKind, all = false): Promise<SkinScene[]> {
+  const { data } = await api.get<SkinScene[]>('/skin-scenes', { params: all ? { kind, all: 1 } : { kind } });
   return data;
 }
 
@@ -18,13 +18,14 @@ export async function getSkinScene(id: string): Promise<SkinScene> {
   return data;
 }
 
-export async function uploadSkinScene(file: File, name?: string): Promise<SkinSceneWithBend> {
+export async function uploadSkinScene(file: File, kind: SceneKind, name?: string): Promise<SkinSceneWithBend> {
   // base64 JSON thay vì multipart — ổn định hơn khi đi qua Cloudflare Tunnel.
   const imageBase64 = await fileToDataUrl(file);
   const { data } = await api.post<SkinSceneWithBend>('/skin-scenes', {
     imageBase64,
     filename: file.name,
     name,
+    kind,
   });
   return data;
 }

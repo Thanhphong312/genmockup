@@ -3,17 +3,19 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { AlertTriangle, Download, Image as ImageIcon, Sparkles, Upload } from 'lucide-react';
-import { CARD_SKIN_RATIO } from '@genmockup/shared';
+import { CARD_SKIN_RATIO, type SceneKind } from '@genmockup/shared';
 import { listSkinScenes } from '../api/skinScenes';
 import { listIdeas } from '../api/ideas';
 import { generateSkin, type SkinGeneration } from '../api/generate';
 import { Button, Card, EmptyState, Spinner } from '../components/ui';
 import { thumb } from '../lib/img';
 import { cn } from '../lib/cn';
+import { SCENE_KIND_UI } from '../lib/sceneKinds';
 
 type Source = 'file' | 'idea';
 
-export default function SkinGeneratePage() {
+export default function SkinGeneratePage({ kind }: { kind: SceneKind }) {
+  const ui = SCENE_KIND_UI[kind];
   const [source, setSource] = useState<Source>('file');
   const [file, setFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
@@ -24,8 +26,8 @@ export default function SkinGeneratePage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: scenes = [], isLoading } = useQuery({
-    queryKey: ['skin-scenes'],
-    queryFn: () => listSkinScenes(),
+    queryKey: ['skin-scenes', kind, 'mine'],
+    queryFn: () => listSkinScenes(kind),
   });
   const { data: ideas = [] } = useQuery({
     queryKey: ['ideas'],
@@ -36,6 +38,7 @@ export default function SkinGeneratePage() {
   const genMut = useMutation({
     mutationFn: () =>
       generateSkin({
+        kind,
         sceneIds: [...picked],
         designFile: source === 'file' ? file ?? undefined : undefined,
         designImageId: source === 'idea' ? ideaId ?? undefined : undefined,
@@ -81,7 +84,7 @@ export default function SkinGeneratePage() {
   return (
     <div className="p-4 sm:p-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Generate Card Skin</h1>
+        <h1 className="text-2xl font-bold">Generate {ui.label}</h1>
         <p className="text-sm text-slate-500 mt-1">
           Chọn 1 design rồi tick các mockup — mỗi mockup ra 1 ảnh, vị trí lấy từ vùng dán đã lưu.
         </p>
@@ -200,8 +203,8 @@ export default function SkinGeneratePage() {
               <div className="flex justify-center py-10"><Spinner /></div>
             ) : scenes.length === 0 ? (
               <EmptyState
-                title="Chưa có mockup card skin"
-                hint="Vào trang Mockup Card Skin để upload ảnh đã khoét lỗ."
+                title={`Chưa có mockup ${ui.label}`}
+                hint={`Vào trang Mockup ${ui.label} để upload ảnh đã khoét lỗ.`}
               />
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -231,7 +234,7 @@ export default function SkinGeneratePage() {
             {scenes.length > 0 && (
               <p className="text-xs text-slate-500 mt-3">
                 Mockup <span className="text-amber-600">chưa xác nhận</span> đang dùng vùng dò tự
-                động — mở <Link to="/skin-scenes" className="text-brand-600 underline">Mockup Card Skin</Link> để kiểm tra.
+                động — mở <Link to={ui.listPath} className="text-brand-600 underline">Mockup {ui.label}</Link> để kiểm tra.
               </p>
             )}
           </Card>

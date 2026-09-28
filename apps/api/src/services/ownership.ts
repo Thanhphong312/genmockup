@@ -25,7 +25,7 @@ export const ITEM_TYPES: ContentType[] = ['mockup', 'shirtSet', 'skinScene', 'wa
 export const CONTENT_LABELS: Record<ContentType, string> = {
   mockup: 'Mockup card',
   shirtSet: 'Bộ áo',
-  skinScene: 'Mockup card skin',
+  skinScene: 'Mockup card skin / pass sleeve',
   watermark: 'Watermark',
   idea: 'Ảnh ý tưởng',
   generation: 'Lịch sử generate',

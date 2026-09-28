@@ -9,6 +9,7 @@ Web app that composites a design image onto pre-configured mockup photos. Three 
 - **card** (`/api/generate`) — one design → N standalone `Mockup` images, each with a saved design "area" (position/size/rotation).
 - **shirt** (`/api/generate/shirt`) — one design → N `ShirtVariant` images (color variants inside a `ShirtSet`), where the area is stored per *set* and shared by all its colors.
 - **skin** (`/api/generate/skin`) — one design → exactly one image per selected `SkinScene`; perspective-warped under a cut-out mockup. No watermark, no per-mockup count.
+- **pass** (`/api/generate/pass`) — pass sleeve: same pipeline and same `SkinScene` model as skin, distinguished by `SkinScene.kind = 'pass'` (`'card'` for skin). UI at `/pass-scenes`, `/pass-generate` reuses the three Skin pages via a `kind` prop (`lib/sceneKinds.ts`).
 
 All three run **synchronously** (a few dozen images per call) and share `parseGenerateRequest`; poll/inspect results via `GET /api/generations/:id`. A separate feature, **New Idea**, calls OpenAI to analyze a reference image and generate new design artwork (this one runs **async** with polling). Output PNGs keep the original mockup dimensions and are served from local storage.
 
@@ -21,7 +22,7 @@ pnpm workspace (`pnpm-workspace.yaml`). Requires Node ≥ 20, pnpm 11.
 - `apps/api` — Fastify 5 backend (`name: api`). TypeScript ESM (`"type": "module"`), run via `tsx`.
 - `apps/web` — React 18 + Vite frontend (`name: web`).
 - `packages/shared` — `@genmockup/shared`: shared TS interfaces + `DESIGN_RATIO = 5/7`. Consumed by both apps directly from source (`main`/`types` → `src/index.ts`, no build step).
-- `PrimeHorizonMockup/` — MV3 Chrome extension (plain JS, no build). Saves ChatGPT images into the idea library and drives generate from the browser. It is a **client of the same API** — if you change auth, `/api/ideas/import`, `/api/generate*`, or the shirt-set endpoints, check `background.js` / `generate.js` too.
+- `PrimeHorizonMockup/` — MV3 Chrome extension (plain JS, no build). Saves ChatGPT images into the idea library and drives generate from the browser. It is a **client of the same API** — if you change auth, `/api/ideas/import`, `/api/generate*`, or the shirt-set endpoints, check `background.js` / `generate.js` too. Its `manifest.json` `host_permissions` hard-codes each API origin (`genmockup.…`, `mockup.…`, `localhost:3000`), so a new server domain needs a manifest entry and a `version` bump.
 - `mockup/` — source images for import only (not served): `mockup/*.png` for the card seed script, `mockup/shirt/<set>/<color>.png` for the shirt-set scan.
 
 ## Commands
@@ -37,6 +38,7 @@ pnpm build:api
 pnpm build:web
 
 pnpm prisma:generate  # regenerate Prisma client (run after editing schema.prisma)
+pnpm prisma:generate:sqlite  # same, from schema.sqlite.prisma — required on the Windows/SQLite box after every install
 pnpm prisma:migrate   # create + apply a dev migration (needs CREATE DATABASE for the shadow DB)
 pnpm prisma:deploy    # apply committed migrations — this is what production runs
 pnpm prisma:studio    # browse the DB
@@ -80,6 +82,8 @@ Two traps that will silently ruin output if the design-loading path is rewritten
 
 Design and paste area must share an aspect ratio (`CARD_SKIN_RATIO = 85.6/54`) — the design is stretched to fill the quad, so a mismatch silently distorts. Both `/api/generate/skin` and the editor warn past 12% deviation.
 
+**Pass sleeve** (`detectHole(buf, 'pass')`): the mockup cuts out only *part* of the card face — the printed logo/swoosh stays opaque — so the hole has three straight edges on the real card edges and one curved edge. The paste quad is still the **whole card face**: the curved side is picked as the edge with the largest RMS residual (measured on the raw bucket points — `robustLine` has already trimmed the curve away as outliers, which picked the wrong side once), then its two corners are extrapolated along the side edges to `CARD_SKIN_RATIO`. The design part under the printed area is simply hidden.
+
 ### Storage (`apps/api/src/services/storage.ts`)
 Local filesystem, **not** the DB. `STORAGE_DIR` resolves relative to **repo root** (4 levels up from the service file), default `./storage`; `mockups/ watermarks/ designs/ outputs/` are created on boot, other subdirs on write. The DB stores only relative `filePath`s; absolute paths come from `resolveAbsPath`, public URLs from `buildPublicUrl` (`${PUBLIC_URL}/files/<relpath>`, served by `@fastify/static` at `/files/`). Layout:
 
@@ -105,7 +109,7 @@ Two MySQL-specific traps, both commented in `schema.prisma`:
 
 Models: `User`, `AppSetting` (per-user KV, PK `[userId, key]`), `Mockup`, `MockupShare`, `Watermark`, `ShirtSet` / `ShirtVariant` (unique `[setId, color]`) / `ShirtSetShare`, `SkinScene` / `SkinSceneShare`, `Generation` (`productType: card|shirt|skin`, status `pending|done|error`) / `GenerationItem` (points at exactly one of `mockupId`, `variantId`, `sceneId`), `IdeaGeneration` / `IdeaImage`.
 
-The single `20260822000000_init_mysql` migration creates all 14 tables, so `prisma migrate deploy` bootstraps a working database. This replaced the old SQLite migration set, which was incomplete — it never created `users`, `mockup_shares`, or `shirt_set_shares`, so `migrate deploy` produced a DB that crashed on boot at `ensureAdminUser()` and everyone used `db push` instead. That workaround is no longer needed.
+The single `20260822000000_init_mysql` migration creates all 14 tables, so `prisma migrate deploy` bootstraps a working database. This replaced the old SQLite migration set, which was incomplete — it never created `users`, `mockup_shares`, or `shirt_set_shares`, so `migrate deploy` produced a DB that crashed on boot at `ensureAdminUser()` and everyone used `db push` instead. That workaround is no longer needed. Later migrations (e.g. `20260928000000_skin_scene_kind`) have no SQLite counterpart: on the SQLite box, apply the equivalent `ALTER TABLE` by hand (`prisma db execute --schema prisma/schema.sqlite.prisma`).
 
 Areas are stored as **flat columns** (`designX/Y/Width/Height/Rotation`, nullable `watermarkX/...`) on both `Mockup` and `ShirtSet`, and mapped to/from the nested `Area` shape in `services/dto.ts`. A watermark area counts as present only when x/y/width/height are all non-null. Keep DTO mapping in sync with schema changes.
 

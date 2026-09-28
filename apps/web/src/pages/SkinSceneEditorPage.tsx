@@ -17,6 +17,7 @@ import { Button, Card, Input, Label, Spinner } from '../components/ui';
 import { QuadEditor, edgeBend } from '../components/QuadEditor';
 import { useElementWidth } from '../lib/useElementWidth';
 import { fileToDataUrl } from '../lib/img';
+import { SCENE_KIND_UI } from '../lib/sceneKinds';
 
 const MAX_STAGE_HEIGHT = 760;
 
@@ -114,15 +115,16 @@ export default function SkinSceneEditorPage() {
   const avail = Math.max((canvasW || 720) - 32, 160);
   const scale = Math.min(avail / W, MAX_STAGE_HEIGHT / H, 1);
   const ratioOff = Math.abs(ratio - CARD_SKIN_RATIO) / CARD_SKIN_RATIO;
+  const ui = SCENE_KIND_UI[scene.kind ?? 'card'];
 
   return (
     <div className="p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => nav('/skin-scenes')}>
+          <Button variant="ghost" size="sm" onClick={() => nav(ui.listPath)}>
             <ArrowLeft className="w-4 h-4" /> Quay lại
           </Button>
-          <h1 className="text-xl font-bold">Xác định vùng dán</h1>
+          <h1 className="text-xl font-bold">Xác định vùng dán · {ui.label}</h1>
           {dirty && <span className="text-xs text-amber-600">• chưa lưu</span>}
         </div>
         <div className="flex gap-2">
@@ -185,7 +187,7 @@ export default function SkinSceneEditorPage() {
               <span className="text-slate-600">{bend.map((b) => b.toFixed(0)).join(' / ')} px</span>
             </div>
             <p className="text-xs text-slate-500 pt-1 border-t border-slate-100 mt-2">
-              Kéo <b className="text-sky-600">● góc</b> để chỉnh 4 góc thẻ, kéo{' '}
+              {ui.editorHint} Kéo <b className="text-sky-600">● góc</b> để chỉnh 4 góc thẻ, kéo{' '}
               <b className="text-amber-600">◆ cam</b> để uốn cong cạnh. Lưới xanh là mặt phẳng
               design sẽ bám theo.
             </p>

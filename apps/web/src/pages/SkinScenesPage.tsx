@@ -29,8 +29,11 @@ import { TransferOwnerModal } from '../components/TransferOwnerModal';
 import { useAuth } from '../contexts/AuthContext';
 import { cn } from '../lib/cn';
 import { thumb } from '../lib/img';
+import { SCENE_KIND_UI } from '../lib/sceneKinds';
+import type { SceneKind } from '@genmockup/shared';
 
-export default function SkinScenesPage() {
+export default function SkinScenesPage({ kind }: { kind: SceneKind }) {
+  const ui = SCENE_KIND_UI[kind];
   const qc = useQueryClient();
   const { isAdmin } = useAuth();
   const [shareFor, setShareFor] = useState<{ id: string; name: string } | null>(null);
@@ -43,8 +46,8 @@ export default function SkinScenesPage() {
 
   const adminAll = isAdmin && showAll;
   const { data: scenes = [], isLoading } = useQuery({
-    queryKey: ['skin-scenes', adminAll ? 'all' : 'mine'],
-    queryFn: () => listSkinScenes(adminAll),
+    queryKey: ['skin-scenes', kind, adminAll ? 'all' : 'mine'],
+    queryFn: () => listSkinScenes(kind, adminAll),
   });
 
   /**
@@ -78,7 +81,7 @@ export default function SkinScenesPage() {
   }
 
   const uploadMut = useMutation({
-    mutationFn: (file: File) => uploadSkinScene(file),
+    mutationFn: (file: File) => uploadSkinScene(file, kind),
     onSuccess: (s) => {
       const bend = s.bend?.length ? ` · cong ${s.bend.map((b) => b.toFixed(0)).join('/')}px` : '';
       toast.success(`"${s.name}": đã dò vùng dán, tỉ lệ ${s.ratio}${bend}`);
@@ -111,11 +114,8 @@ export default function SkinScenesPage() {
     <div className="p-4 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Mockup Card Skin</h1>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Upload ảnh mockup đã <b>khoét rỗng mặt thẻ</b> (PNG có vùng trong suốt). Hệ thống tự
-            xác định vùng dán; ngón tay, bo góc và chip giữ nguyên vì nằm sẵn trong ảnh.
-          </p>
+          <h1 className="text-2xl font-bold">Mockup {ui.label}</h1>
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl">{ui.uploadHint}</p>
         </div>
         <div className="flex items-center gap-4">
           {isAdmin && <AdminAllToggle value={showAll} onChange={setShowAll} />}
@@ -189,8 +189,8 @@ export default function SkinScenesPage() {
         <div className="flex justify-center py-16"><Spinner /></div>
       ) : scenes.length === 0 ? (
         <EmptyState
-          title="Chưa có mockup card skin nào"
-          hint="Khoét rỗng mặt thẻ trong ảnh, xuất PNG rồi upload lên đây."
+          title={`Chưa có mockup ${ui.label} nào`}
+          hint={ui.emptyHint}
         />
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -265,7 +265,7 @@ export default function SkinScenesPage() {
                   </div>
                 ) : (
                   <div className="flex gap-2 mt-3">
-                    <Link to={`/skin-scenes/${s.id}/edit`} className="flex-1">
+                    <Link to={`${ui.listPath}/${s.id}/edit`} className="flex-1">
                       <Button variant="secondary" size="sm" className="w-full">
                         <Crop className="w-3.5 h-3.5" /> Vùng dán
                       </Button>
